@@ -1,6 +1,7 @@
 import cv2
 import numpy as np
 import pyperclip
+from PIL import ImageGrab
 
 # ==========================================
 #              CONFIGURATION
@@ -15,7 +16,7 @@ END_POINT_Y   = 930    # Bottom-right corner Y
 # Detection parameters
 THRESHOLD = 0.70       # Minimum confidence (0.70 = 70%)
 CROP_SIZE = 55         # Size of extracted square (in pixels)
-DEBUG_VISUAL = True    # Shows window with squares and detected pieces
+DEBUG_VISUAL = False    # Shows window with squares and detected pieces
 
 # Template mapping (UPPERCASE=Red, lowercase=Black)
 templates_map = {
@@ -87,20 +88,6 @@ def identify_piece(crop, templates):
         if max_val > best_score:
             best_score = max_val
             best_piece = code
-
-    # Debug for red cannon with low score
-    if best_piece == 'C' and best_score < 0.85:
-        print(f"  [DEBUG] Red cannon with low score ({best_score:.2%})")
-        temp_cannon = templates.get('C')
-        if temp_cannon is not None:
-            h = max(crop.shape[0], temp_cannon.shape[0])
-            comparison = np.zeros((h, crop.shape[1] + temp_cannon.shape[1], 3), dtype=np.uint8)
-            comparison[:crop.shape[0], :crop.shape[1]] = crop
-            comparison[:temp_cannon.shape[0], crop.shape[1]:] = temp_cannon
-            cv2.putText(comparison, "Crop", (5, 15), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 255, 0), 1)
-            cv2.putText(comparison, "Template", (crop.shape[1]+5, 15), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 255, 0), 1)
-            cv2.putText(comparison, f"Score: {best_score:.2%}", (5, h-5), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 255, 255), 1)
-            cv2.imwrite("debug_cannon_comparison.png", comparison)
     
     return (best_piece, best_score) if best_score >= THRESHOLD else (None, 0)
 
@@ -129,12 +116,18 @@ def generate_fen(board):
 # ==========================================
 
 def main():
-    # Load image
-    image_path = 'image.png'
-    board_img = cv2.imread(image_path)
-    if board_img is None:
-        print(f"Error: Could not open '{image_path}'.")
+    # Capture image from clipboard
+    print("Capturando imagem do clipboard...")
+    pil_img = ImageGrab.grabclipboard()
+    
+    if pil_img is None:
+        print("ERROR: No image found in clipboard!")
+        print("Tip: Press Print Screen and try again.")
         return
+    
+    # Convert PIL image to OpenCV format (BGR)
+    board_img = cv2.cvtColor(np.array(pil_img), cv2.COLOR_RGB2BGR)
+    print(f"✓ Image captured: {board_img.shape[1]}x{board_img.shape[0]} pixels")
 
     templates = load_templates()
     board_logic = [[None for _ in range(9)] for _ in range(10)]

@@ -2,7 +2,7 @@
 
 Automatic Xiangqi (Chinese Chess) board recognition system using computer vision.
 
-⚠️ **Important:** This tool only works with the game running at **1920x1080 resolution (1080p)**. Other resolutions are not supported.
+⚠️ **Important:** This tool only works with the game running at **1920x1080 resolution (1080p)**. Other resolutions are not supported yet.
 
 ## 📋 Requirements
 
@@ -34,40 +34,34 @@ xiangqichess/
 │   ├── red_chariot.png
 │   ├── black_horse.png
 │   └── ...
-├── image.png            # Board image to analyze
 └── requirements.txt     # Dependencies
 ```
 
 ## 🎯 How to Use
 
-### Step 0: Capture Screenshot
+### Step 1: Configure Game Board
 
-**Important:** The board image must be captured correctly:
+In "Where's Wind Meet", set the chess board to **Icons Chess Board** mode.
+
+### Step 2: Capture Screenshot
+
+**Important:** Press `Print Screen` to capture the board:
 
 - **Single monitor (1920x1080):** Press `Print Screen` to capture the full screen
 - **Dual monitors:** Press `Alt + Print Screen` to capture only the active window
-- Save the screenshot as `image.png` in the project folder
 
-### Step 1: Configure Coordinates
+The program will automatically read the image from your clipboard.
 
-Edit `main.py` (lines 10-13) with the board corner coordinates:
+### Step 3: Run
 
-```python
-START_POINT_X = 177    # Top-left corner
-START_POINT_Y = 103
-END_POINT_X   = 920    # Bottom-right corner
-END_POINT_Y   = 930
-```
-
-### Step 2: Run
-
-Place the board image as `image.png` and run:
+After capturing the screenshot, run:
 
 ```bash
 python main.py
 ```
 
 The program will:
+- Read the image directly from clipboard
 - Detect all pieces on the board
 - Generate FEN notation
 - Automatically copy to clipboard
@@ -95,4 +89,5 @@ rnbakabnr/9/1c5c1/p1p1p1p1p/9/9/P1P1P1P1P/1C5C1/9/RNBAKABNR w - - 0 1
 
 - **OpenCV**: Template matching for piece recognition
 - **NumPy**: Array and matrix manipulation
+- **Pillow**: Clipboard image capture
 - **Pyperclip**: Automatic clipboard copying
