@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+ENV/
+env/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Arquivos temporários e debug
+save/
+*.png.bak
+debug_*.png
+screenshot_auto.png
+tempCodeRunnerFile.py
+
+# Sistema
+.DS_Store
+Thumbs.db
+desktop.ini
