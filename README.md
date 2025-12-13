@@ -2,7 +2,11 @@
 
 Automatic Xiangqi (Chinese Chess) board recognition system using computer vision.
 
-⚠️ **Important:** This tool only works with the game running at **1920x1080 resolution (1080p)**. Other resolutions are not supported yet.
+⚠️ **Important Notes:**
+- This tool was calibrated based on **1920x1080 (1080p)** resolution with automatic scaling for other resolutions
+- **Other resolutions (2K, 4K, etc.) may present discrepancies** in detection accuracy
+- **The game MUST be in full screen mode** for optimal detection
+- For best results, use 1080p resolution
 
 ## 📋 Requirements
 
@@ -45,9 +49,11 @@ In "Where's Wind Meet", set the chess board to **Icons Chess Board** mode.
 
 ### Step 2: Capture Screenshot
 
-**Important:** Press `Print Screen` to capture the board:
+**Important:** 
+- **Game MUST be in full screen mode**
+- Press `Print Screen` to capture the board:
 
-- **Single monitor (1920x1080):** Press `Print Screen` to capture the full screen
+- **Single monitor:** Press `Print Screen` to capture the full screen
 - **Dual monitors:** Press `Alt + Print Screen` to capture only the active window
 
 The program will automatically read the image from your clipboard.
