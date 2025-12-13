@@ -2,20 +2,24 @@ import cv2
 import numpy as np
 import pyperclip
 from PIL import ImageGrab
+import tkinter as tk
 
 # ==========================================
 #              CONFIGURATION
 # ==========================================
 
-# Calibration points (top-left and bottom-right corners)
-START_POINT_X = 177    # Top-left corner X
-START_POINT_Y = 103    # Top-left corner Y
-END_POINT_X   = 920    # Bottom-right corner X
-END_POINT_Y   = 930    # Bottom-right corner Y
+# Base resolution (1080p) - templates were created at this resolution
+BASE_RESOLUTION = (1920, 1080)
+BASE_COORDS = {
+    'start_x': 177,
+    'start_y': 103,
+    'end_x': 920,
+    'end_y': 930,
+    'crop_size': 55
+}
 
 # Detection parameters
 THRESHOLD = 0.70       # Minimum confidence (0.70 = 70%)
-CROP_SIZE = 55         # Size of extracted square (in pixels)
 DEBUG_VISUAL = False    # Shows window with squares and detected pieces
 
 # Template mapping (UPPERCASE=Red, lowercase=Black)
@@ -40,13 +44,35 @@ templates_map = {
 #           MAIN FUNCTIONS
 # ==========================================
 
-def load_templates():
-    """Loads and resizes all template images."""
+def calculate_scale_factor(img_width, img_height):
+    """Calculate scale factor based on current resolution vs base resolution."""
+    scale_x = img_width / BASE_RESOLUTION[0]
+    scale_y = img_height / BASE_RESOLUTION[1]
+    # Use average to handle non-uniform scaling
+    return (scale_x + scale_y) / 2.0
+
+def scale_coordinates(scale_factor):
+    """Scale board coordinates based on resolution."""
+    return {
+        'start_x': int(BASE_COORDS['start_x'] * scale_factor),
+        'start_y': int(BASE_COORDS['start_y'] * scale_factor),
+        'end_x': int(BASE_COORDS['end_x'] * scale_factor),
+        'end_y': int(BASE_COORDS['end_y'] * scale_factor),
+        'crop_size': int(BASE_COORDS['crop_size'] * scale_factor)
+    }
+
+def load_templates(scale_factor=1.0):
+    """Loads and scales template images based on resolution."""
     loaded = {}
-    print("Loading templates...")
+    print(f"Loading templates (scale: {scale_factor:.2f}x)...")
     for code, path in templates_map.items():
         img = cv2.imread(path, cv2.IMREAD_COLOR)
         if img is not None:
+            # Scale template if resolution is different from base
+            if scale_factor != 1.0:
+                new_width = int(img.shape[1] * scale_factor)
+                new_height = int(img.shape[0] * scale_factor)
+                img = cv2.resize(img, (new_width, new_height), interpolation=cv2.INTER_CUBIC)
             loaded[code] = img
     return loaded
 
@@ -91,6 +117,32 @@ def identify_piece(crop, templates):
     
     return (best_piece, best_score) if best_score >= THRESHOLD else (None, 0)
 
+def fit_to_screen(img):
+    """Resize image to fit screen if it's larger."""
+    try:
+        root = tk.Tk()
+        screen_width = root.winfo_screenwidth()
+        screen_height = root.winfo_screenheight()
+        root.destroy()
+        
+        # Leave some margin (90% of screen)
+        max_width = int(screen_width * 0.9)
+        max_height = int(screen_height * 0.9)
+        
+        img_height, img_width = img.shape[:2]
+        
+        # Calculate scale to fit screen
+        if img_width > max_width or img_height > max_height:
+            scale = min(max_width / img_width, max_height / img_height)
+            new_width = int(img_width * scale)
+            new_height = int(img_height * scale)
+            return cv2.resize(img, (new_width, new_height), interpolation=cv2.INTER_AREA)
+        
+        return img
+    except:
+        # If tkinter fails, return original image
+        return img
+
 def generate_fen(board):
     """Converts the board matrix to FEN notation."""
     fen = ""
@@ -117,7 +169,7 @@ def generate_fen(board):
 
 def main():
     # Capture image from clipboard
-    print("Capturando imagem do clipboard...")
+    print("Capturing image from clipboard...")
     pil_img = ImageGrab.grabclipboard()
     
     if pil_img is None:
@@ -127,28 +179,37 @@ def main():
     
     # Convert PIL image to OpenCV format (BGR)
     board_img = cv2.cvtColor(np.array(pil_img), cv2.COLOR_RGB2BGR)
-    print(f"✓ Image captured: {board_img.shape[1]}x{board_img.shape[0]} pixels")
-
-    templates = load_templates()
+    height, width = board_img.shape[:2]
+    print(f"✓ Image loaded: {width}x{height} pixels")
+    
+    # Calculate scale factor and adjust coordinates
+    scale_factor = calculate_scale_factor(width, height)
+    coords = scale_coordinates(scale_factor)
+    
+    print(f"Resolution scale: {scale_factor:.2f}x (base: {BASE_RESOLUTION[0]}x{BASE_RESOLUTION[1]})")
+    print(f"Board region: ({coords['start_x']},{coords['start_y']}) to ({coords['end_x']},{coords['end_y']})")
+    
+    # Load templates with scaling
+    templates = load_templates(scale_factor)
     board_logic = [[None for _ in range(9)] for _ in range(10)]
     debug_img = board_img.copy()
 
     # Calculate grid dimensions
-    total_width = END_POINT_X - START_POINT_X
-    total_height = END_POINT_Y - START_POINT_Y
+    total_width = coords['end_x'] - coords['start_x']
+    total_height = coords['end_y'] - coords['start_y']
     print(f"Scanning board ({total_width}x{total_height} px)...")
     
     # Scan all 90 positions (10 rows × 9 columns)
     for row in range(10):
         percent_y = row / 9.0
-        cy = int(START_POINT_Y + (total_height * percent_y))
+        cy = int(coords['start_y'] + (total_height * percent_y))
         
         for col in range(9):
             percent_x = col / 8.0
-            cx = int(START_POINT_X + (total_width * percent_x))
+            cx = int(coords['start_x'] + (total_width * percent_x))
             
             # Extract crop
-            half = CROP_SIZE // 2
+            half = coords['crop_size'] // 2
             y1, y2 = cy - half, cy + half
             x1, x2 = cx - half, cx + half
             
@@ -192,7 +253,17 @@ def main():
     print("="*40)
     
     if DEBUG_VISUAL:
-        cv2.imshow("Visual Check", debug_img)
+        # Resize to fit screen if necessary
+        display_img = fit_to_screen(debug_img)
+        
+        # Add resolution text in top-left corner
+        res_text = f"{width}x{height}"
+        cv2.putText(display_img, res_text, (10, 25),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 0), 3)  # Black outline
+        cv2.putText(display_img, res_text, (10, 25),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)  # Green text
+        
+        cv2.imshow("Visual Check", display_img)
         print("Press any key to close.")
         cv2.waitKey(0)
         cv2.destroyAllWindows()
