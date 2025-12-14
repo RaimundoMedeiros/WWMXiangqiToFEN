@@ -3,10 +3,21 @@ import numpy as np
 import pyperclip
 from PIL import ImageGrab
 import tkinter as tk
+import sys
+import os
 
 # ==========================================
 #              CONFIGURATION
 # ==========================================
+
+# Get base path 
+def get_base_path():
+    if getattr(sys, 'frozen', False):
+        return sys._MEIPASS
+    else:
+        return os.path.dirname(os.path.abspath(__file__))
+
+BASE_PATH = get_base_path()
 
 # Base resolution (1080p) - templates were created at this resolution
 BASE_RESOLUTION = (1920, 1080)
@@ -24,20 +35,20 @@ DEBUG_VISUAL = False    # Shows window with squares and detected pieces
 
 # Template mapping (UPPERCASE=Red, lowercase=Black)
 templates_map = {
-    'R': 'templates/red_chariot.png',
-    'N': 'templates/red_horse.png',
-    'B': 'templates/red_elephant.png',
-    'A': 'templates/red_advisor.png',
-    'K': 'templates/red_general.png',
-    'C': 'templates/red_cannon.png',
-    'P': 'templates/red_soldier.png',
-    'r': 'templates/black_chariot.png',
-    'n': 'templates/black_horse.png',
-    'b': 'templates/black_elephant.png',
-    'a': 'templates/black_advisor.png',
-    'k': 'templates/black_general.png',
-    'c': 'templates/black_cannon.png',
-    'p': 'templates/black_soldier.png',
+    'R': os.path.join(BASE_PATH, 'templates', 'red_chariot.png'),
+    'N': os.path.join(BASE_PATH, 'templates', 'red_horse.png'),
+    'B': os.path.join(BASE_PATH, 'templates', 'red_elephant.png'),
+    'A': os.path.join(BASE_PATH, 'templates', 'red_advisor.png'),
+    'K': os.path.join(BASE_PATH, 'templates', 'red_general.png'),
+    'C': os.path.join(BASE_PATH, 'templates', 'red_cannon.png'),
+    'P': os.path.join(BASE_PATH, 'templates', 'red_soldier.png'),
+    'r': os.path.join(BASE_PATH, 'templates', 'black_chariot.png'),
+    'n': os.path.join(BASE_PATH, 'templates', 'black_horse.png'),
+    'b': os.path.join(BASE_PATH, 'templates', 'black_elephant.png'),
+    'a': os.path.join(BASE_PATH, 'templates', 'black_advisor.png'),
+    'k': os.path.join(BASE_PATH, 'templates', 'black_general.png'),
+    'c': os.path.join(BASE_PATH, 'templates', 'black_cannon.png'),
+    'p': os.path.join(BASE_PATH, 'templates', 'black_soldier.png'),
 }
 
 # ==========================================
