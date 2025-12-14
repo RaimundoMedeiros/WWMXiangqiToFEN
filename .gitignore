@@ -22,6 +22,20 @@ debug_*.png
 screenshot_auto.png
 tempCodeRunnerFile.py
 
+# PyInstaller
+build/
+dist/
+*.spec
+
+# GUI e arquivos de desenvolvimento
+gui.py
+icoconverter.py
+xiangqi-icon.ico
+xiangqi.svg
+4k.png
+2k.png
+1080p.png
+
 # Sistema
 .DS_Store
 Thumbs.db

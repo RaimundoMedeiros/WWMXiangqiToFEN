@@ -31,7 +31,7 @@ BASE_COORDS = {
 
 # Detection parameters
 THRESHOLD = 0.70       # Minimum confidence (0.70 = 70%)
-DEBUG_VISUAL = False    # Shows window with squares and detected pieces
+DEBUG_VISUAL = True    # Shows window with squares and detected pieces
 
 # Template mapping (UPPERCASE=Red, lowercase=Black)
 templates_map = {
@@ -175,40 +175,43 @@ def generate_fen(board):
     return fen
 
 # ==========================================
-#            MAIN FUNCTION
+#         BOARD SCANNING FUNCTION
 # ==========================================
 
-def main():
-    # Capture image from clipboard
-    print("Capturing image from clipboard...")
-    pil_img = ImageGrab.grabclipboard()
+def scan_board(board_img, verbose=True):
+    """
+    Scan board and return all detection results.
     
-    if pil_img is None:
-        print("ERROR: No image found in clipboard!")
-        print("Tip: Press Print Screen and try again.")
-        return
+    Args:
+        board_img: OpenCV image (BGR format)
+        verbose: If True, print detection details
     
-    # Convert PIL image to OpenCV format (BGR)
-    board_img = cv2.cvtColor(np.array(pil_img), cv2.COLOR_RGB2BGR)
+    Returns:
+        dict with keys: board, fen, debug_img, pieces_info, scale_factor, coords
+    """
     height, width = board_img.shape[:2]
-    print(f"✓ Image loaded: {width}x{height} pixels")
+    if verbose:
+        print(f"✓ Image loaded: {width}x{height} pixels")
     
     # Calculate scale factor and adjust coordinates
     scale_factor = calculate_scale_factor(width, height)
     coords = scale_coordinates(scale_factor)
     
-    print(f"Resolution scale: {scale_factor:.2f}x (base: {BASE_RESOLUTION[0]}x{BASE_RESOLUTION[1]})")
-    print(f"Board region: ({coords['start_x']},{coords['start_y']}) to ({coords['end_x']},{coords['end_y']})")
+    if verbose:
+        print(f"Resolution scale: {scale_factor:.2f}x (base: {BASE_RESOLUTION[0]}x{BASE_RESOLUTION[1]})")
+        print(f"Board region: ({coords['start_x']},{coords['start_y']}) to ({coords['end_x']},{coords['end_y']})")
     
     # Load templates with scaling
     templates = load_templates(scale_factor)
     board_logic = [[None for _ in range(9)] for _ in range(10)]
     debug_img = board_img.copy()
+    pieces_info = []  # List of (row, col, piece, score)
 
     # Calculate grid dimensions
     total_width = coords['end_x'] - coords['start_x']
     total_height = coords['end_y'] - coords['start_y']
-    print(f"Scanning board ({total_width}x{total_height} px)...")
+    if verbose:
+        print(f"Scanning board ({total_width}x{total_height} px)...")
     
     # Scan all 90 positions (10 rows × 9 columns)
     for row in range(10):
@@ -229,34 +232,87 @@ def main():
 
             crop = board_img[y1:y2, x1:x2]
             
-            # Visual debug
-            if DEBUG_VISUAL:
-                cv2.rectangle(debug_img, (x1, y1), (x2, y2), (0, 255, 0), 1)
+            # Visual debug - draw rectangles
+            cv2.rectangle(debug_img, (x1, y1), (x2, y2), (0, 255, 0), 1)
 
             # Identify piece
             piece, score = identify_piece(crop, templates)
             
             if piece:
                 board_logic[row][col] = piece
-                # Draw letter with outline
-                cv2.putText(debug_img, piece, (cx-10, cy+5), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 0), 4)
-                cv2.putText(debug_img, piece, (cx-10, cy+5), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 255), 2)
-                print(f"[{row},{col}] '{piece}' - {score:.2%}")
+                pieces_info.append((row, col, piece, score))
+                
+                # Draw letter with outline (scaled font size)
+                font_scale = 0.8 * scale_factor
+                thickness_bg = max(1, int(4 * scale_factor))
+                thickness_fg = max(1, int(2 * scale_factor))
+                
+                cv2.putText(debug_img, piece, (cx-10, cy+5), 
+                           cv2.FONT_HERSHEY_SIMPLEX, font_scale, (0, 0, 0), thickness_bg)
+                cv2.putText(debug_img, piece, (cx-10, cy+5), 
+                           cv2.FONT_HERSHEY_SIMPLEX, font_scale, (0, 255, 255), thickness_fg)
+                if verbose:
+                    print(f"[{row},{col}] '{piece}' - {score:.2%}")
             else:
-                if score > 0:
+                if verbose and score > 0:
                     print(f"[{row},{col}] Empty (score: {score:.2%})")
-
-    # Generate and display FEN
+    
+    # Add resolution text to debug image (scaled font)
+    res_text = f"{width}x{height}"
+    res_font_scale = 0.7 * scale_factor
+    res_thickness_bg = max(1, int(3 * scale_factor))
+    res_thickness_fg = max(1, int(2 * scale_factor))
+    
+    cv2.putText(debug_img, res_text, (10, int(25 * scale_factor)),
+               cv2.FONT_HERSHEY_SIMPLEX, res_font_scale, (0, 0, 0), res_thickness_bg)
+    cv2.putText(debug_img, res_text, (10, int(25 * scale_factor)),
+               cv2.FONT_HERSHEY_SIMPLEX, res_font_scale, (0, 255, 0), res_thickness_fg)
+    
+    # Generate FEN
     fen = generate_fen(board_logic)
+    
+    return {
+        'board': board_logic,
+        'fen': fen,
+        'debug_img': debug_img,
+        'pieces_info': pieces_info,
+        'scale_factor': scale_factor,
+        'coords': coords,
+        'width': width,
+        'height': height
+    }
+
+# ==========================================
+#            MAIN FUNCTION
+# ==========================================
+
+def main():
+    # Capture image from clipboard
+    print("Capturing image from clipboard...")
+    pil_img = ImageGrab.grabclipboard()
+    
+    if pil_img is None:
+        print("ERROR: No image found in clipboard!")
+        print("Tip: Press Print Screen and try again.")
+        return
+    
+    # Convert PIL image to OpenCV format (BGR)
+    board_img = cv2.cvtColor(np.array(pil_img), cv2.COLOR_RGB2BGR)
+    
+    # Scan board
+    result = scan_board(board_img, verbose=True)
+
+    # Display FEN
+    fen_full = result['fen'] + " w - - 0 1"
     print("\n" + "="*40)
     print(" FINAL RESULT (FEN)")
     print("="*40)
-    print(fen+" w - - 0 1")
+    print(fen_full)
     print("="*40)
     
     # Copy to clipboard
     try:
-        pyperclip.copy(fen+" w - - 0 1")
+        pyperclip.copy(fen_full)
         print("[OK] FEN copied! Use Ctrl+V to paste.")
     except Exception as e:
         print(f"[WARNING] Copy error: {e}")
@@ -265,14 +321,7 @@ def main():
     
     if DEBUG_VISUAL:
         # Resize to fit screen if necessary
-        display_img = fit_to_screen(debug_img)
-        
-        # Add resolution text in top-left corner
-        res_text = f"{width}x{height}"
-        cv2.putText(display_img, res_text, (10, 25),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 0), 3)  # Black outline
-        cv2.putText(display_img, res_text, (10, 25),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)  # Green text
+        display_img = fit_to_screen(result['debug_img'])
         
         cv2.imshow("Visual Check", display_img)
         print("Press any key to close.")
