@@ -3,10 +3,9 @@
 Automatic Xiangqi (Chinese Chess) board recognition system using computer vision.
 
 ⚠️ **Important Notes:**
-- This tool was calibrated based on **1920x1080 (1080p)** resolution with automatic scaling for other resolutions
-- **Other resolutions (2K, 4K, etc.) may present discrepancies** in detection accuracy
-- **The game MUST be in full screen mode** for optimal detection
-- For best results, use 1080p resolution
+- **Dynamic Scaling:** The tool now automatically adapts to any resolution (1080p, 2K, 4K, etc.).
+- **Aspect Ratio Support:** Fully supports **Ultra-Wide (21:9)**, standard (16:9), and even **Vertical (Portrait)** monitors by automatically centering the detection grid.
+- **Windowed Mode:** Works in both full-screen and windowed modes, provided the game board remains centered in the captured image.
 
 ## 📋 Requirements
 
@@ -14,6 +13,7 @@ Automatic Xiangqi (Chinese Chess) board recognition system using computer vision
 - OpenCV
 - NumPy
 - Pyperclip
+- Pillow (PIL)
 
 ## 🚀 Installation
 
@@ -49,14 +49,11 @@ In "Where's Wind Meet", set the chess board to **Icons Chess Board** mode.
 
 ### Step 2: Capture Screenshot
 
-**Important:** 
-- **Game MUST be in full screen mode**
-- Press `Print Screen` to capture the board:
+The program reads the image directly from your **clipboard**.
 
-- **Single monitor:** Press `Print Screen` to capture the full screen
-- **Dual monitors:** Press `Alt + Print Screen` to capture only the active window
-
-The program will automatically read the image from your clipboard.
+* **Single monitor:** Press `Print Screen` to capture the full screen.
+* **Active Window:** Press `Alt + Print Screen` to capture only the game window (recommended if playing in windowed mode).
+* **Region:** You can also use `Win + Shift + S` to capture the board area specifically.
 
 ### Step 3: Run
 
@@ -67,10 +64,10 @@ python main.py
 ```
 
 The program will:
-- Read the image directly from clipboard
-- Detect all pieces on the board
-- Generate FEN notation
-- Automatically copy to clipboard
+- Detect your screen resolution and aspect ratio.
+- Calculate offsets to find the centered board.
+- Match pieces using scaled templates.
+- **Generate FEN notation** and copy it to your clipboard automatically.
 
 ## ⚙️ Configuration
 
@@ -87,9 +84,8 @@ Standard Xiangqi FEN notation:
 rnbakabnr/9/1c5c1/p1p1p1p1p/9/9/P1P1P1P1P/1C5C1/9/RNBAKABNR w - - 0 1
 ```
 
-- **UPPERCASE** = Red pieces
-- **lowercase** = Black pieces
-- **Numbers** = Empty squares
+* **UPPERCASE** = Red pieces
+* **lowercase** = Black pieces
 
 ## 🔧 Technologies
 
