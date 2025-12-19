@@ -55,20 +55,35 @@ templates_map = {
 #           MAIN FUNCTIONS
 # ==========================================
 
-def calculate_scale_factor(img_width, img_height):
-    """Calculate scale factor based on current resolution vs base resolution."""
-    scale_x = img_width / BASE_RESOLUTION[0]
-    scale_y = img_height / BASE_RESOLUTION[1]
-    # Use average to handle non-uniform scaling
-    return (scale_x + scale_y) / 2.0
+def calculate_offsets_and_scale(img_width, img_height):
+    """Calculate scale factor and offsets to handle 21:9, 4:3, or portrait modes."""
+    target_aspect = BASE_RESOLUTION[0] / BASE_RESOLUTION[1] # 1.777 (16:9)
+    current_aspect = img_width / img_height
+    
+    if current_aspect > target_aspect:
+        # Screen is wider than 16:9 (e.g., 21:9)
+        # Scale by height and add horizontal offsets
+        virtual_width = img_height * target_aspect
+        scale_factor = img_height / BASE_RESOLUTION[1]
+        offset_x = (img_width - virtual_width) / 2
+        offset_y = 0
+    else:
+        # Screen is taller than 16:9 (e.g., vertical monitor)
+        # Scale by width and add vertical offsets
+        virtual_height = img_width / target_aspect
+        scale_factor = img_width / BASE_RESOLUTION[0]
+        offset_x = 0
+        offset_y = (img_height - virtual_height) / 2
+        
+    return scale_factor, int(offset_x), int(offset_y)
 
-def scale_coordinates(scale_factor):
-    """Scale board coordinates based on resolution."""
+def scale_coordinates(scale_factor, offset_x, offset_y):
+    """Scale board coordinates based on resolution and screen offsets."""
     return {
-        'start_x': int(BASE_COORDS['start_x'] * scale_factor),
-        'start_y': int(BASE_COORDS['start_y'] * scale_factor),
-        'end_x': int(BASE_COORDS['end_x'] * scale_factor),
-        'end_y': int(BASE_COORDS['end_y'] * scale_factor),
+        'start_x': int(BASE_COORDS['start_x'] * scale_factor + offset_x),
+        'start_y': int(BASE_COORDS['start_y'] * scale_factor + offset_y),
+        'end_x': int(BASE_COORDS['end_x'] * scale_factor + offset_x),
+        'end_y': int(BASE_COORDS['end_y'] * scale_factor + offset_y),
         'crop_size': int(BASE_COORDS['crop_size'] * scale_factor)
     }
 
@@ -139,15 +154,13 @@ def fit_to_screen(img):
         # Leave some margin (90% of screen)
         max_width = int(screen_width * 0.9)
         max_height = int(screen_height * 0.9)
-        
+
         img_height, img_width = img.shape[:2]
         
         # Calculate scale to fit screen
         if img_width > max_width or img_height > max_height:
             scale = min(max_width / img_width, max_height / img_height)
-            new_width = int(img_width * scale)
-            new_height = int(img_height * scale)
-            return cv2.resize(img, (new_width, new_height), interpolation=cv2.INTER_AREA)
+            return cv2.resize(img, (int(img_width * scale), int(img_height * scale)), interpolation=cv2.INTER_AREA)
         
         return img
     except:
@@ -178,56 +191,34 @@ def generate_fen(board):
 #         BOARD SCANNING FUNCTION
 # ==========================================
 
-def scan_board(board_img, verbose=True):
-    """
-    Scan board and return all detection results.
-    
-    Args:
-        board_img: OpenCV image (BGR format)
-        verbose: If True, print detection details
-    
-    Returns:
-        dict with keys: board, fen, debug_img, pieces_info, scale_factor, coords
-    """
+def scan_board(board_img):
+    """Main scanning logic with aspect ratio adjustment."""
     height, width = board_img.shape[:2]
-    if verbose:
-        print(f"✓ Image loaded: {width}x{height} pixels")
     
-    # Calculate scale factor and adjust coordinates
-    scale_factor = calculate_scale_factor(width, height)
-    coords = scale_coordinates(scale_factor)
-    
-    if verbose:
-        print(f"Resolution scale: {scale_factor:.2f}x (base: {BASE_RESOLUTION[0]}x{BASE_RESOLUTION[1]})")
-        print(f"Board region: ({coords['start_x']},{coords['start_y']}) to ({coords['end_x']},{coords['end_y']})")
+    # Handle resolution and aspect ratio (21:9 / vertical etc.)
+    scale_factor, offset_x, offset_y = calculate_offsets_and_scale(width, height)
+    coords = scale_coordinates(scale_factor, offset_x, offset_y)
     
     # Load templates with scaling
     templates = load_templates(scale_factor)
     board_logic = [[None for _ in range(9)] for _ in range(10)]
     debug_img = board_img.copy()
-    pieces_info = []  # List of (row, col, piece, score)
 
     # Calculate grid dimensions
     total_width = coords['end_x'] - coords['start_x']
     total_height = coords['end_y'] - coords['start_y']
-    if verbose:
-        print(f"Scanning board ({total_width}x{total_height} px)...")
     
-    # Scan all 90 positions (10 rows × 9 columns)
+    # Scan all 90 positions
     for row in range(10):
-        percent_y = row / 9.0
-        cy = int(coords['start_y'] + (total_height * percent_y))
-        
+        cy = int(coords['start_y'] + (total_height * (row / 9.0)))
         for col in range(9):
-            percent_x = col / 8.0
-            cx = int(coords['start_x'] + (total_width * percent_x))
+            cx = int(coords['start_x'] + (total_width * (col / 8.0)))
             
             # Extract crop
             half = coords['crop_size'] // 2
-            y1, y2 = cy - half, cy + half
-            x1, x2 = cx - half, cx + half
+            y1, y2, x1, x2 = cy-half, cy+half, cx-half, cx+half
             
-            if x1 < 0 or y1 < 0 or x2 > board_img.shape[1] or y2 > board_img.shape[0]:
+            if x1 < 0 or y1 < 0 or x2 > width or y2 > height:
                 continue
 
             crop = board_img[y1:y2, x1:x2]
@@ -240,47 +231,14 @@ def scan_board(board_img, verbose=True):
             
             if piece:
                 board_logic[row][col] = piece
-                pieces_info.append((row, col, piece, score))
-                
-                # Draw letter with outline (scaled font size)
+                # Draw visual indicators
                 font_scale = 0.8 * scale_factor
-                thickness_bg = max(1, int(4 * scale_factor))
-                thickness_fg = max(1, int(2 * scale_factor))
-                
-                cv2.putText(debug_img, piece, (cx-10, cy+5), 
-                           cv2.FONT_HERSHEY_SIMPLEX, font_scale, (0, 0, 0), thickness_bg)
-                cv2.putText(debug_img, piece, (cx-10, cy+5), 
-                           cv2.FONT_HERSHEY_SIMPLEX, font_scale, (0, 255, 255), thickness_fg)
-                if verbose:
-                    print(f"[{row},{col}] '{piece}' - {score:.2%}")
-            else:
-                if verbose and score > 0:
-                    print(f"[{row},{col}] Empty (score: {score:.2%})")
+                thick_bg = max(1, int(4 * scale_factor))
+                thick_fg = max(1, int(2 * scale_factor))
+                cv2.putText(debug_img, piece, (cx-10, cy+5), cv2.FONT_HERSHEY_SIMPLEX, font_scale, (0, 0, 0), thick_bg)
+                cv2.putText(debug_img, piece, (cx-10, cy+5), cv2.FONT_HERSHEY_SIMPLEX, font_scale, (0, 255, 255), thick_fg)
     
-    # Add resolution text to debug image (scaled font)
-    res_text = f"{width}x{height}"
-    res_font_scale = 0.7 * scale_factor
-    res_thickness_bg = max(1, int(3 * scale_factor))
-    res_thickness_fg = max(1, int(2 * scale_factor))
-    
-    cv2.putText(debug_img, res_text, (10, int(25 * scale_factor)),
-               cv2.FONT_HERSHEY_SIMPLEX, res_font_scale, (0, 0, 0), res_thickness_bg)
-    cv2.putText(debug_img, res_text, (10, int(25 * scale_factor)),
-               cv2.FONT_HERSHEY_SIMPLEX, res_font_scale, (0, 255, 0), res_thickness_fg)
-    
-    # Generate FEN
-    fen = generate_fen(board_logic)
-    
-    return {
-        'board': board_logic,
-        'fen': fen,
-        'debug_img': debug_img,
-        'pieces_info': pieces_info,
-        'scale_factor': scale_factor,
-        'coords': coords,
-        'width': width,
-        'height': height
-    }
+    return {'fen': generate_fen(board_logic), 'debug_img': debug_img}
 
 # ==========================================
 #            MAIN FUNCTION
@@ -298,9 +256,9 @@ def main():
     
     # Convert PIL image to OpenCV format (BGR)
     board_img = cv2.cvtColor(np.array(pil_img), cv2.COLOR_RGB2BGR)
-    
+
     # Scan board
-    result = scan_board(board_img, verbose=True)
+    result = scan_board(board_img)
 
     # Display FEN
     fen_full = result['fen'] + " w - - 0 1"
